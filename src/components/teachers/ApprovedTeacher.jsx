@@ -348,22 +348,17 @@ const ApprovedTeachers = () => {
     if (cvUrl) {
       const fileType = getFileType(cvUrl);
       if (fileType === 'pdf') {
-        // For PDF files, we'll directly set the URL in the iframe
-        // If the URL has query parameters, add dl=0, otherwise add ?dl=0
-        // This forces display instead of download
+        // Convert raw URLs to standard delivery URLs
         let previewUrl = cvUrl;
         
-        // Check if we need to modify the URL for Cloudinary
-        if (cvUrl.includes('cloudinary.com')) {
-          // Convert URL to ensure it's a direct PDF URL that can be embedded
-          // Remove any potential transformation parameters that might cause issues
-          if (cvUrl.includes('/upload/')) {
-            // For regular URLs, ensure proper format for viewing
-            previewUrl = cvUrl.includes('?') ? `${cvUrl}&dl=0` : `${cvUrl}?dl=0`;
-          }
+        // Fix the URL format - remove 'raw/' from the path
+        if (cvUrl.includes('/raw/upload/')) {
+          previewUrl = cvUrl.replace('/raw/upload/', '/upload/');
         }
         
-        setSelectedCvUrl(previewUrl);
+        // Use Google Docs viewer as a fallback that works reliably
+        const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(previewUrl)}&embedded=true`;
+        setSelectedCvUrl(googleDocsUrl);
         setCvModalVisible(true);
       } else if (fileType === 'doc') {
         const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
@@ -377,9 +372,24 @@ const ApprovedTeachers = () => {
       message.error('CV not available');
     }
   };
+
   const handleDownloadCV = (cvUrl) => {
     if (cvUrl) {
-      window.open(cvUrl, '_blank');
+      // For download, also ensure we're using the correct URL format
+      let downloadUrl = cvUrl;
+      
+      // If it contains Google Docs viewer URL, extract the original URL
+      if (cvUrl.includes('docs.google.com/gview')) {
+        const urlParams = new URLSearchParams(cvUrl.split('?')[1]);
+        downloadUrl = urlParams.get('url') || cvUrl;
+      }
+      
+      // Fix raw URLs for download too
+      if (downloadUrl.includes('/raw/upload/')) {
+        downloadUrl = downloadUrl.replace('/raw/upload/', '/upload/');
+      }
+      
+      window.open(downloadUrl, '_blank');
     } else {
       message.error('CV not available');
     }
@@ -665,15 +675,31 @@ const ApprovedTeachers = () => {
                 </Button>
               </Space>
             </div>
-            <iframe
-              src={selectedCvUrl}
-              style={{ 
-                width: '100%', 
-                height: 'calc(100% - 50px)', 
-                border: 'none' 
-              }}
-              title="CV Preview"
-            />
+            {selectedCvUrl && selectedCvUrl.includes('google.com/gview') ? (
+              <iframe
+                src={selectedCvUrl}
+                style={{ 
+                  width: '100%', 
+                  height: 'calc(100% - 50px)', 
+                  border: 'none' 
+                }}
+                title="CV Preview"
+                frameBorder="0"
+                allowFullScreen
+              />
+            ) : (
+              <object
+                data={selectedCvUrl}
+                type="application/pdf"
+                width="100%"
+                height="calc(100% - 50px)"
+              >
+                <p>
+                  Your browser does not support PDF viewing. 
+                  <a href={selectedCvUrl} target="_blank" rel="noreferrer">Click here to download the PDF</a>.
+                </p>
+              </object>
+            )}
           </div>
         )}
       </Modal>
