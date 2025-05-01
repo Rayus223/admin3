@@ -145,9 +145,45 @@ const ParentList = () => {
             const gender = record.preferredTeacher === 'any' ? 'Any' : 
                            record.preferredTeacher === 'male' ? 'Male' : 'Female';
             
+            // Fetch all vacancies to find the latest title number
+            const allVacancies = await apiService.getAllVacancies();
+            
+            // Extract the highest vacancy number (format: "Vacancy D##" or "Vacancy ##")
+            let highestNumber = 0;
+            const PREFIX = 'Vacancy D'; // Change this if your prefix is different
+            
+            allVacancies.forEach(vacancy => {
+                if (vacancy.title && vacancy.title.startsWith('Vacancy')) {
+                    // Check for both formats: "Vacancy D##" and "Vacancy ##"
+                    let numberStr;
+                    
+                    if (vacancy.title.startsWith(PREFIX)) {
+                        // Format: "Vacancy D##"
+                        numberStr = vacancy.title.substring(PREFIX.length);
+                    } else {
+                        // Format: "Vacancy ##"
+                        numberStr = vacancy.title.substring('Vacancy '.length);
+                    }
+                    
+                    // Parse the number if it exists
+                    if (numberStr && !isNaN(parseInt(numberStr))) {
+                        const vacancyNumber = parseInt(numberStr);
+                        if (vacancyNumber > highestNumber) {
+                            highestNumber = vacancyNumber;
+                        }
+                    }
+                }
+            });
+            
+            // Generate the next vacancy title with incremented number
+            const nextNumber = highestNumber + 1;
+            const newTitle = `${PREFIX}${nextNumber}`;
+            
+            console.log(`Generated new vacancy title: ${newTitle} (previous highest: ${highestNumber})`);
+            
             // Create vacancy data object with updated field mappings
             const vacancyData = {
-                title: `Vacancy ${String(record.applicationNumber).padStart(2, '0')}`,
+                title: newTitle, // Use the generated title instead of application number
                 subject: Array.isArray(record.subjects) ? record.subjects[0] : record.subjects,
                 // Map parent form fields to vacancy form fields
                 class: record.grade, // Use grade as class
