@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Tooltip, message, Modal } from 'antd';
-import { EyeOutlined, FilePdfOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Tooltip, message, Modal, Popconfirm } from 'antd';
+import { EyeOutlined, FilePdfOutlined, DownloadOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import apiService from '../../services/api';
 import { useRef } from 'react';
 
@@ -11,6 +11,7 @@ const RejectedTeachers = () => {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [cvModalVisible, setCvModalVisible] = useState(false);
   const [selectedCvUrl, setSelectedCvUrl] = useState(null);
+  const [restoreLoading, setRestoreLoading] = useState(false);
 
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,6 +46,26 @@ const RejectedTeachers = () => {
   const handleViewTeacher = (teacher) => {
     setSelectedTeacher(teacher);
     setViewModalVisible(true);
+  };
+
+  const handleRestoreTeacher = async (teacherId) => {
+    try {
+      setRestoreLoading(true);
+      const response = await apiService.updateTeacherStatus(teacherId, 'approved');
+      
+      if (response && response.success) {
+        message.success('Teacher has been restored to approved list');
+        // Remove the teacher from the local state
+        setTeachers(teachers.filter(teacher => teacher._id !== teacherId));
+      } else {
+        message.error('Failed to restore teacher: ' + (response?.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error restoring teacher:', error);
+      message.error('Failed to restore teacher. Please try again.');
+    } finally {
+      setRestoreLoading(false);
+    }
   };
 
   const getFileType = (url) => {
@@ -143,6 +164,22 @@ const RejectedTeachers = () => {
               onClick={() => handleViewCV(record.cv)}
             />
           </Tooltip>
+          <Tooltip title="Restore to Approved List">
+            <Popconfirm
+              title="Restore Teacher"
+              description="Are you sure you want to restore this teacher to the approved list?"
+              onConfirm={() => handleRestoreTeacher(record._id)}
+              okText="Yes, Restore"
+              cancelText="No"
+              okButtonProps={{ loading: restoreLoading }}
+            >
+              <Button 
+                type="primary" 
+                icon={<CheckCircleOutlined />}
+                style={{ backgroundColor: '#52c41a' }}
+              />
+            </Popconfirm>
+          </Tooltip>
         </Space>
       )
     }
@@ -174,7 +211,37 @@ const RejectedTeachers = () => {
         title="Teacher Details"
         open={viewModalVisible}
         onCancel={() => setViewModalVisible(false)}
-        footer={null}
+        footer={[
+          <Button 
+            key="restore" 
+            type="primary" 
+            icon={<CheckCircleOutlined />} 
+            loading={restoreLoading}
+            style={{ backgroundColor: '#52c41a' }}
+            onClick={() => {
+              if (selectedTeacher) {
+                Modal.confirm({
+                  title: 'Restore Teacher',
+                  content: `Are you sure you want to restore ${selectedTeacher.fullName} to the approved list?`,
+                  okText: 'Yes, Restore',
+                  cancelText: 'No',
+                  onOk: async () => {
+                    await handleRestoreTeacher(selectedTeacher._id);
+                    setViewModalVisible(false);
+                  }
+                });
+              }
+            }}
+          >
+            Restore to Approved
+          </Button>,
+          <Button 
+            key="close" 
+            onClick={() => setViewModalVisible(false)}
+          >
+            Close
+          </Button>
+        ]}
         width={800}
       >
         {selectedTeacher && (
