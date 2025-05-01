@@ -344,22 +344,13 @@ const ApprovedTeachers = () => {
     return 'unknown';
   };
 
-    const handleViewCV = (cvUrl) => {
+   const handleViewCV = (cvUrl) => {
     if (cvUrl) {
       const fileType = getFileType(cvUrl);
       if (fileType === 'pdf') {
-        // Check if the URL already has the correct format
-        if (cvUrl.includes('/raw/upload/')) {
-          const previewUrl = cvUrl.replace('/raw/upload/', '/upload/');
-          setSelectedCvUrl(previewUrl);
-        } else {
-          // For production URLs, use the URL directly or add delivery parameters if needed
-          // Example: add fl_attachment flag for inline viewing
-          const previewUrl = cvUrl.includes('?') 
-            ? `${cvUrl}&fl_attachment=false` 
-            : `${cvUrl}?fl_attachment=false`;
-          setSelectedCvUrl(previewUrl);
-        }
+        // Use Google Docs Viewer for all PDFs
+        const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
+        setSelectedCvUrl(googleDocsUrl);
         setCvModalVisible(true);
       } else if (fileType === 'doc') {
         const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
