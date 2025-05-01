@@ -452,18 +452,10 @@ const ApprovedTeachers = () => {
       }
     ] : []),
     {
-      title: 'Subjects',
-      dataIndex: 'subjects',
-      key: 'subjects',
-      render: (subjects) => (
-        <>
-          {subjects.map(subject => (
-            <Tag key={subject} color="blue">
-              {subject}
-            </Tag>
-          ))}
-        </>
-      )
+      title: 'Class',
+      dataIndex: 'class',
+      key: 'class',
+      render: (teacherClass) => teacherClass || 'N/A'
     },
     {
       title: 'Status',
@@ -563,11 +555,14 @@ const ApprovedTeachers = () => {
                 <div className="detail-row">
                   <strong>Location:</strong> {selectedTeacher.address || 'N/A'}
                 </div>
-                 <div className="detail-row"><strong>Subjects:</strong> 
-                  {selectedTeacher.subjects?.map(subject => (
-                    <Tag key={subject} color="blue">{subject}</Tag>
-                  )) || 'N/A'}
-                 </div>
+                <div className="detail-row"><strong>Class:</strong> 
+                 {selectedTeacher.class || 'N/A'}
+                </div>
+                <div className="detail-row"><strong>Subjects:</strong> 
+                 {selectedTeacher.subjects?.map(subject => (
+                   <Tag key={subject} color="blue">{subject}</Tag>
+                 )) || 'N/A'}
+                </div>
                 <div className="detail-row"><strong>CV:</strong> 
                   {selectedTeacher.cv ? (
                     <Button icon={<FilePdfOutlined />} onClick={() => handleViewCV(selectedTeacher.cv)}>View CV</Button>
