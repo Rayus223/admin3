@@ -347,23 +347,21 @@ const ApprovedTeachers = () => {
   const handleViewCV = (cvUrl) => {
     if (cvUrl) {
       const fileType = getFileType(cvUrl);
-      if (fileType === 'pdf') {
-        // Convert raw URLs to standard delivery URLs
-        let previewUrl = cvUrl;
+      if (fileType === 'pdf' || fileType === 'doc') {
+        // Always get a clean URL first
+        let cleanUrl = cvUrl;
         
-        // Fix the URL format - remove 'raw/' from the path
-        if (cvUrl.includes('/raw/upload/')) {
-          previewUrl = cvUrl.replace('/raw/upload/', '/upload/');
+        // Fix raw URLs from Cloudinary
+        if (cleanUrl.includes('/raw/upload/')) {
+          cleanUrl = cleanUrl.replace('/raw/upload/', '/upload/');
         }
         
-        // Use Google Docs viewer as a fallback that works reliably
-        const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(previewUrl)}&embedded=true`;
-        setSelectedCvUrl(googleDocsUrl);
+        // Set a direct download link as a fallback
+        setSelectedCvUrl(cleanUrl);
         setCvModalVisible(true);
-      } else if (fileType === 'doc') {
-        const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
-        setSelectedCvUrl(googleDocsUrl);
-        setCvModalVisible(true);
+        
+        // For better UX, show a message about possible viewing issues
+        message.info('If the preview doesn\'t load, you can use the download button.');
       } else {
         message.warning('File type not supported for preview. Downloading instead...');
         handleDownloadCV(cvUrl);
@@ -375,20 +373,15 @@ const ApprovedTeachers = () => {
 
   const handleDownloadCV = (cvUrl) => {
     if (cvUrl) {
-      // For download, also ensure we're using the correct URL format
+      // For download, ensure we're using the correct URL format
       let downloadUrl = cvUrl;
-      
-      // If it contains Google Docs viewer URL, extract the original URL
-      if (cvUrl.includes('docs.google.com/gview')) {
-        const urlParams = new URLSearchParams(cvUrl.split('?')[1]);
-        downloadUrl = urlParams.get('url') || cvUrl;
-      }
       
       // Fix raw URLs for download too
       if (downloadUrl.includes('/raw/upload/')) {
         downloadUrl = downloadUrl.replace('/raw/upload/', '/upload/');
       }
       
+      // Open in a new tab to trigger download
       window.open(downloadUrl, '_blank');
     } else {
       message.error('CV not available');
@@ -656,7 +649,7 @@ const ApprovedTeachers = () => {
       >
         {selectedCvUrl && (
           <div style={{ height: '600px', width: '100%' }}>
-            <div className="cv-modal-header">
+            <div className="cv-modal-header" style={{ marginBottom: '15px' }}>
               <Space>
                 <Button 
                   type="primary"
@@ -664,6 +657,14 @@ const ApprovedTeachers = () => {
                   onClick={() => handleDownloadCV(selectedCvUrl)}
                 >
                   Download
+                </Button>
+                <Button 
+                  onClick={() => {
+                    // Open in a new tab for direct viewing
+                    window.open(selectedCvUrl, '_blank');
+                  }}
+                >
+                  Open in New Tab
                 </Button>
                 <Button 
                   onClick={() => {
@@ -675,31 +676,55 @@ const ApprovedTeachers = () => {
                 </Button>
               </Space>
             </div>
-            {selectedCvUrl && selectedCvUrl.includes('google.com/gview') ? (
-              <iframe
-                src={selectedCvUrl}
-                style={{ 
-                  width: '100%', 
-                  height: 'calc(100% - 50px)', 
-                  border: 'none' 
-                }}
-                title="CV Preview"
-                frameBorder="0"
-                allowFullScreen
-              />
-            ) : (
+            
+            {/* PDF Viewer Fallback System */}
+            <div style={{ 
+              border: '1px solid #f0f0f0', 
+              height: 'calc(100% - 65px)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '20px',
+              backgroundColor: '#f9f9f9'
+            }}>
+              <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                <FilePdfOutlined style={{ fontSize: '48px', color: '#ff4d4f' }} />
+                <h3 style={{ marginTop: '10px' }}>CV Preview</h3>
+                <p>Please use one of the options above to view or download the CV</p>
+              </div>
+              
+              {/* Try to embed using object tag as a last resort */}
               <object
                 data={selectedCvUrl}
                 type="application/pdf"
                 width="100%"
-                height="calc(100% - 50px)"
+                height="100%"
+                style={{ display: 'none' }} // Initially hidden, will show if loaded
+                onLoad={(e) => {
+                  // If PDF loads successfully, show it
+                  e.target.style.display = 'block';
+                  e.target.parentNode.querySelector('.fallback-message').style.display = 'none';
+                }}
               >
-                <p>
-                  Your browser does not support PDF viewing. 
-                  <a href={selectedCvUrl} target="_blank" rel="noreferrer">Click here to download the PDF</a>.
-                </p>
+                <div className="fallback-message">
+                  <p>Your browser cannot display the PDF preview.</p>
+                  <Space>
+                    <Button 
+                      type="primary" 
+                      onClick={() => window.open(selectedCvUrl, '_blank')}
+                    >
+                      Open in Browser
+                    </Button>
+                    <Button 
+                      onClick={() => handleDownloadCV(selectedCvUrl)}
+                    >
+                      Download File
+                    </Button>
+                  </Space>
+                </div>
               </object>
-            )}
+            </div>
           </div>
         )}
       </Modal>
