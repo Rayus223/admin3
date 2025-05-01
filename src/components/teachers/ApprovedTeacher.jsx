@@ -347,21 +347,27 @@ const ApprovedTeachers = () => {
   const handleViewCV = (cvUrl) => {
     if (cvUrl) {
       const fileType = getFileType(cvUrl);
-      if (fileType === 'pdf' || fileType === 'doc') {
-        // Always get a clean URL first
-        let cleanUrl = cvUrl;
+      if (fileType === 'pdf') {
+        // For PDF files, we'll directly set the URL in the iframe
+        // If the URL has query parameters, add dl=0, otherwise add ?dl=0
+        // This forces display instead of download
+        let previewUrl = cvUrl;
         
-        // Fix raw URLs from Cloudinary
-        if (cleanUrl.includes('/raw/upload/')) {
-          cleanUrl = cleanUrl.replace('/raw/upload/', '/upload/');
+        // Check if we need to modify the URL for Cloudinary
+        if (cvUrl.includes('cloudinary.com')) {
+          // Convert URL to ensure it's a direct PDF URL that can be embedded
+          // Remove any potential transformation parameters that might cause issues
+          if (cvUrl.includes('/upload/')) {
+            // For regular URLs, ensure proper format for viewing
+            previewUrl = cvUrl.includes('?') ? `${cvUrl}&dl=0` : `${cvUrl}?dl=0`;
+          }
         }
         
-        // Set a direct download link as a fallback
-        setSelectedCvUrl(cleanUrl);
+        setSelectedCvUrl(previewUrl);
         setCvModalVisible(true);
-        
-        // For better UX, show a message about possible viewing issues
-        message.info('If the preview doesn\'t load, you can use the download button.');
+      } else if (fileType === 'doc') {
+        const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
+        setCvModalVisible(true);
       } else {
         message.warning('File type not supported for preview. Downloading instead...');
         handleDownloadCV(cvUrl);
@@ -371,18 +377,11 @@ const ApprovedTeachers = () => {
     }
   };
 
+
+
   const handleDownloadCV = (cvUrl) => {
     if (cvUrl) {
-      // For download, ensure we're using the correct URL format
-      let downloadUrl = cvUrl;
-      
-      // Fix raw URLs for download too
-      if (downloadUrl.includes('/raw/upload/')) {
-        downloadUrl = downloadUrl.replace('/raw/upload/', '/upload/');
-      }
-      
-      // Open in a new tab to trigger download
-      window.open(downloadUrl, '_blank');
+      window.open(cvUrl, '_blank');
     } else {
       message.error('CV not available');
     }
@@ -649,7 +648,7 @@ const ApprovedTeachers = () => {
       >
         {selectedCvUrl && (
           <div style={{ height: '600px', width: '100%' }}>
-            <div className="cv-modal-header" style={{ marginBottom: '15px' }}>
+            <div className="cv-modal-header">
               <Space>
                 <Button 
                   type="primary"
@@ -657,14 +656,6 @@ const ApprovedTeachers = () => {
                   onClick={() => handleDownloadCV(selectedCvUrl)}
                 >
                   Download
-                </Button>
-                <Button 
-                  onClick={() => {
-                    // Open in a new tab for direct viewing
-                    window.open(selectedCvUrl, '_blank');
-                  }}
-                >
-                  Open in New Tab
                 </Button>
                 <Button 
                   onClick={() => {
@@ -676,55 +667,31 @@ const ApprovedTeachers = () => {
                 </Button>
               </Space>
             </div>
-            
-            {/* PDF Viewer Fallback System */}
-            <div style={{ 
-              border: '1px solid #f0f0f0', 
-              height: 'calc(100% - 65px)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              padding: '20px',
-              backgroundColor: '#f9f9f9'
-            }}>
-              <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                <FilePdfOutlined style={{ fontSize: '48px', color: '#ff4d4f' }} />
-                <h3 style={{ marginTop: '10px' }}>CV Preview</h3>
-                <p>Please use one of the options above to view or download the CV</p>
-              </div>
-              
-              {/* Try to embed using object tag as a last resort */}
+            {selectedCvUrl && selectedCvUrl.includes('google.com/gview') ? (
+              <iframe
+                src={selectedCvUrl}
+                style={{ 
+                  width: '100%', 
+                  height: 'calc(100% - 50px)', 
+                  border: 'none' 
+                }}
+                title="CV Preview"
+                frameBorder="0"
+                allowFullScreen
+              />
+            ) : (
               <object
                 data={selectedCvUrl}
                 type="application/pdf"
                 width="100%"
-                height="100%"
-                style={{ display: 'none' }} // Initially hidden, will show if loaded
-                onLoad={(e) => {
-                  // If PDF loads successfully, show it
-                  e.target.style.display = 'block';
-                  e.target.parentNode.querySelector('.fallback-message').style.display = 'none';
-                }}
+                height="calc(100% - 50px)"
               >
-                <div className="fallback-message">
-                  <p>Your browser cannot display the PDF preview.</p>
-                  <Space>
-                    <Button 
-                      type="primary" 
-                      onClick={() => window.open(selectedCvUrl, '_blank')}
-                    >
-                      Open in Browser
-                    </Button>
-                    <Button 
-                      onClick={() => handleDownloadCV(selectedCvUrl)}
-                    >
-                      Download File
-                    </Button>
-                  </Space>
-                </div>
+                <p>
+                  Your browser does not support PDF viewing. 
+                  <a href={selectedCvUrl} target="_blank" rel="noreferrer">Click here to download the PDF</a>.
+                </p>
               </object>
-            </div>
+            )}
           </div>
         )}
       </Modal>
