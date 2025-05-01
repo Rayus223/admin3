@@ -560,7 +560,63 @@ const fetchData = async (showLoading = true) => {
             selectedTeacher: modalType === 'viewTeacher' ? data : prev.selectedTeacher,
             selectedVacancy: modalType === 'editVacancy' ? data : prev.selectedVacancy,
         }));
-        if (!data) form.resetFields();
+
+        // Reset form fields and set default values as needed
+        if (!data) {
+            form.resetFields();
+            
+            // If adding a new vacancy, generate automatic sequential title
+            if (modalType === 'addVacancy') {
+                // Generate a sequential title based on existing vacancies
+                const generateSequentialTitle = async () => {
+                    try {
+                        // Fetch all vacancies to find the latest title number
+                        const allVacancies = await apiService.getAllVacancies();
+                        
+                        // Extract the highest vacancy number (format: "Vacancy D##" or "Vacancy ##")
+                        let highestNumber = 0;
+                        const PREFIX = 'Vacancy D'; // Change this if your prefix is different
+                        
+                        allVacancies.forEach(vacancy => {
+                            if (vacancy.title && vacancy.title.startsWith('Vacancy')) {
+                                // Check for both formats: "Vacancy D##" and "Vacancy ##"
+                                let numberStr;
+                                
+                                if (vacancy.title.startsWith(PREFIX)) {
+                                    // Format: "Vacancy D##"
+                                    numberStr = vacancy.title.substring(PREFIX.length);
+                                } else {
+                                    // Format: "Vacancy ##"
+                                    numberStr = vacancy.title.substring('Vacancy '.length);
+                                }
+                                
+                                // Parse the number if it exists
+                                if (numberStr && !isNaN(parseInt(numberStr))) {
+                                    const vacancyNumber = parseInt(numberStr);
+                                    if (vacancyNumber > highestNumber) {
+                                        highestNumber = vacancyNumber;
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Generate the next vacancy title with incremented number
+                        const nextNumber = highestNumber + 1;
+                        const newTitle = `${PREFIX}${nextNumber}`;
+                        
+                        console.log(`Generated new vacancy title: ${newTitle} (previous highest: ${highestNumber})`);
+                        
+                        // Set the title in the form
+                        form.setFieldsValue({ title: newTitle });
+                    } catch (error) {
+                        console.error('Error generating sequential title:', error);
+                        // If there's an error, don't set anything and let user enter manually
+                    }
+                };
+                
+                generateSequentialTitle();
+            }
+        }
     };
 
     // Vacancy handlers
