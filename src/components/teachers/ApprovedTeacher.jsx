@@ -344,13 +344,26 @@ const ApprovedTeachers = () => {
     return 'unknown';
   };
 
-   const handleViewCV = (cvUrl) => {
+  const handleViewCV = (cvUrl) => {
     if (cvUrl) {
       const fileType = getFileType(cvUrl);
       if (fileType === 'pdf') {
-        // Use Google Docs Viewer for all PDFs
-        const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
-        setSelectedCvUrl(googleDocsUrl);
+        // For PDF files, we'll directly set the URL in the iframe
+        // If the URL has query parameters, add dl=0, otherwise add ?dl=0
+        // This forces display instead of download
+        let previewUrl = cvUrl;
+        
+        // Check if we need to modify the URL for Cloudinary
+        if (cvUrl.includes('cloudinary.com')) {
+          // Convert URL to ensure it's a direct PDF URL that can be embedded
+          // Remove any potential transformation parameters that might cause issues
+          if (cvUrl.includes('/upload/')) {
+            // For regular URLs, ensure proper format for viewing
+            previewUrl = cvUrl.includes('?') ? `${cvUrl}&dl=0` : `${cvUrl}?dl=0`;
+          }
+        }
+        
+        setSelectedCvUrl(previewUrl);
         setCvModalVisible(true);
       } else if (fileType === 'doc') {
         const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
@@ -364,7 +377,6 @@ const ApprovedTeachers = () => {
       message.error('CV not available');
     }
   };
-
   const handleDownloadCV = (cvUrl) => {
     if (cvUrl) {
       window.open(cvUrl, '_blank');
