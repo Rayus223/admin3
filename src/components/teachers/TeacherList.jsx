@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     Table, Tag, Button, Space, Modal, message, Tooltip, Tabs, Card, 
@@ -1330,12 +1330,15 @@ const handlePaymentResponse = (hasPaid) => {
       }
         },
         {
-            title: 'Subject',
-            dataIndex: 'subject',
-            key: 'subject',
-            render: (subject) => (
-                <Tag color="blue">{subject.toUpperCase()}</Tag>
-            )
+            title: 'Location',
+            dataIndex: 'location',
+            key: 'location',
+        },
+        {
+            title: 'Class',
+            dataIndex: 'class',
+            key: 'class',
+            render: (classValue) => `Grade ${classValue}`
         },
         {
             title: 'Salary',
