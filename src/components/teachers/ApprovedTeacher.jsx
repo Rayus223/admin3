@@ -377,8 +377,6 @@ const ApprovedTeachers = () => {
     }
   };
 
-
-
   const handleDownloadCV = (cvUrl) => {
     if (cvUrl) {
       window.open(cvUrl, '_blank');
@@ -644,10 +642,12 @@ const ApprovedTeachers = () => {
         }}
         footer={null}
         width={800}
+        height={800}
+        style={{ top: 20 }}
         className="cv-modal"
       >
         {selectedCvUrl && (
-          <div style={{ height: '600px', width: '100%' }}>
+          <div style={{ height: '80vh', width: '100%' }}>
             <div className="cv-modal-header">
               <Space>
                 <Button 
