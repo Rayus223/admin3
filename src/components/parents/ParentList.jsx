@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Space, Button, message, Modal, Tooltip, Tag} from 'antd';
-import { EyeOutlined, DeleteOutlined,  ExclamationCircleOutlined, PlusCircleOutlined } from '@ant-design/icons';
+import { Table, Space, Button, message, Modal, Tooltip, Tag, Switch, Popconfirm } from 'antd';
+import { EyeOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusCircleOutlined, RestOutlined, UndoOutlined } from '@ant-design/icons';
 import apiService from '../../services/api';
 
 const { confirm } = Modal;
@@ -11,6 +11,7 @@ const ParentList = () => {
     const [loading, setLoading] = useState(true);
     const [selectedParent, setSelectedParent] = useState(null);
     const [viewModalVisible, setViewModalVisible] = useState(false);
+    const [showTrash, setShowTrash] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -25,12 +26,16 @@ const ParentList = () => {
      // Add useEffect to fetch data when component mounts
      useEffect(() => {
         fetchParents();
-    }, []);
+    }, [showTrash]);
 
     const fetchParents = async () => {
         try {
-            // Update the endpoint to match the backend route
-            const response = await fetch('https://api.dearsirhometuition.com/api/parents/all');
+            // Update the endpoint to fetch either active or trashed parents
+            const endpoint = showTrash 
+                ? 'https://api.dearsirhometuition.com/api/parents/trash'
+                : 'https://api.dearsirhometuition.com/api/parents/all';
+            
+            const response = await fetch(endpoint);
             const data = await response.json();
             if (data.success) {
                 setParents(data.data);
@@ -47,14 +52,18 @@ const ParentList = () => {
 
     const showDeleteConfirm = (record) => {
         confirm({
-            title: 'Are you sure you want to delete this application?',
+            title: showTrash 
+                ? 'Are you sure you want to permanently delete this application?' 
+                : 'Are you sure you want to move this application to trash?',
             icon: <ExclamationCircleOutlined />,
-            content: `This will permanently delete ${record.parentName}'s application.`,
-            okText: 'Yes, Delete',
+            content: showTrash
+                ? `This will permanently delete ${record.parentName}'s application and cannot be undone.`
+                : `${record.parentName}'s application will be moved to trash.`,
+            okText: showTrash ? 'Yes, Delete Permanently' : 'Yes, Move to Trash',
             okType: 'danger',
             cancelText: 'No, Cancel',
             onOk() {
-                return handleDelete(record._id);
+                return showTrash ? handlePermanentDelete(record._id) : handleMoveToTrash(record._id);
             },
             onCancel() {
                 // Do nothing on cancel
@@ -62,15 +71,71 @@ const ParentList = () => {
         });
     };
 
-    const handleDelete = async (id) => {
+    const handleMoveToTrash = async (id) => {
         try {
-            await fetch(`https://api.dearsirhometuition.com/api/parents/${id}`, {
+            const response = await fetch(`https://api.dearsirhometuition.com/api/parents/${id}/trash`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ trashed: true })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                message.success('Parent application moved to trash');
+                fetchParents();
+            } else {
+                message.error('Failed to move parent application to trash: ' + data.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            message.error('Failed to move parent application to trash');
+        }
+    };
+
+    const handlePermanentDelete = async (id) => {
+        try {
+            const response = await fetch(`https://api.dearsirhometuition.com/api/parents/${id}`, {
                 method: 'DELETE'
             });
-            message.success('Parent application deleted successfully');
-            fetchParents();
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                message.success('Parent application permanently deleted');
+                fetchParents();
+            } else {
+                message.error('Failed to delete parent application: ' + data.message);
+            }
         } catch (error) {
+            console.error('Error:', error);
             message.error('Failed to delete parent application');
+        }
+    };
+
+    const handleRestore = async (id) => {
+        try {
+            const response = await fetch(`https://api.dearsirhometuition.com/api/parents/${id}/restore`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ trashed: false })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                message.success('Parent application restored');
+                fetchParents();
+            } else {
+                message.error('Failed to restore parent application: ' + data.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            message.error('Failed to restore parent application');
         }
     };
 
@@ -175,9 +240,72 @@ const ParentList = () => {
         };
     }, []);
 
+    // Define different action columns for active vs trash view
+    const getActionColumn = () => {
+        if (showTrash) {
+            return {
+                title: 'Actions',
+                key: 'actions',
+                render: (_, record) => (
+                    <Space>
+                        <Tooltip title="Restore">
+                            <Button
+                                type="primary"
+                                icon={<UndoOutlined />}
+                                onClick={() => handleRestore(record._id)}
+                            />
+                        </Tooltip>
+                        <Popconfirm
+                            title="Delete permanently?"
+                            description="This action cannot be undone!"
+                            onConfirm={() => handlePermanentDelete(record._id)}
+                            okText="Yes, Delete"
+                            cancelText="No, Cancel"
+                            okButtonProps={{ danger: true }}
+                        >
+                            <Button danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                    </Space>
+                )
+            };
+        }
+        
+        // Regular view actions
+        return {
+            title: 'Actions',
+            key: 'actions',
+            render: (_, record) => (
+                <Space>
+                    <Tooltip title="View Details">
+                        <Button 
+                            icon={<EyeOutlined />} 
+                            onClick={() => {
+                                setSelectedParent(record);
+                                setViewModalVisible(true);
+                            }}
+                        />
+                    </Tooltip>
+                    <Tooltip title="Create Vacancy">
+                        <Button 
+                            type="primary"
+                            icon={<PlusCircleOutlined />} 
+                            onClick={() => handleCreateVacancy(record)}
+                        />
+                    </Tooltip>
+                    <Tooltip title="Move to Trash">
+                        <Button 
+                            danger 
+                            icon={<DeleteOutlined />} 
+                            onClick={() => showDeleteConfirm(record)}
+                        />
+                    </Tooltip>
+                </Space>
+            )
+        };
+    };
 
-
-    const columns = [
+    // Base columns for both views
+    const baseColumns = [
         {
             title: 'Application No.',
             dataIndex: 'applicationNumber',
@@ -191,7 +319,6 @@ const ParentList = () => {
             fixed: 'left',
             sorter: (a, b) => (a.applicationNumber || 0) - (b.applicationNumber || 0)
         },
-
         {
           title: 'Parent Name',
           dataIndex: 'parentName',
@@ -274,42 +401,27 @@ const ParentList = () => {
             dataIndex: 'salary',
             key: 'salary',
             render: (salary) => salary || 'Not specified'
-        },
-        {
-            title: 'Actions',
-            key: 'actions',
-            render: (_, record) => (
-                <Space>
-                    <Tooltip title="View Details">
-                        <Button 
-                            icon={<EyeOutlined />} 
-                            onClick={() => {
-                                setSelectedParent(record);
-                                setViewModalVisible(true);
-                            }}
-                        />
-                    </Tooltip>
-                    <Tooltip title="Create Vacancy">
-                        <Button 
-                            type="primary"
-                            icon={<PlusCircleOutlined />} 
-                            onClick={() => handleCreateVacancy(record)}
-                        />
-                    </Tooltip>
-                    <Button 
-                        danger 
-                        icon={<DeleteOutlined />} 
-                        onClick={() => showDeleteConfirm(record)}
-                    />
-                </Space>
-            )
         }
     ];
 
+    // Add action column to columns array
+    const columns = [...baseColumns, getActionColumn()];
 
     return (
         <div className="parent-list">
-            <h2>Parent Applications</h2>
+            <div className="list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2>{showTrash ? 'Trash Bin' : 'Parent Applications'}</h2>
+                <div>
+                    <Switch 
+                        checkedChildren="Trash" 
+                        unCheckedChildren="Active" 
+                        checked={showTrash}
+                        onChange={(checked) => setShowTrash(checked)}
+                        style={{ marginRight: '10px' }}
+                    />
+                </div>
+            </div>
+            
             <Table 
                 columns={columns} 
                 dataSource={parents}
@@ -326,8 +438,9 @@ const ParentList = () => {
                     showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
                     position: ['bottomRight']
                 }}
-                defaultSortOrder="descend"  // Added this line
+                defaultSortOrder="descend"
                 sortDirections={['descend', 'ascend']}
+                locale={{ emptyText: showTrash ? 'Trash bin is empty' : 'No applications found' }}
             />
 
         <Modal
