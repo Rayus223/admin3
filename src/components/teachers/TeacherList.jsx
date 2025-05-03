@@ -66,6 +66,10 @@ const TeacherList = () => {
     const [partialPaymentVisible, setPartialPaymentVisible] = useState(false);
     const [partialPaymentForm] = Form.useForm();
 
+    // Add new state variables for parent details
+    const [parentDetailsVisible, setParentDetailsVisible] = useState(false);
+    const [selectedParent, setSelectedParent] = useState(null);
+
     // Define columns for the budget table
     
 
@@ -1496,12 +1500,20 @@ const handlePaymentResponse = (hasPaid) => {
             key: 'actions',
             render: (_, record) => (
                 <Space>
-                    <Tooltip title="Copy">
+                    <Tooltip title="Copy Vacancy">
                         <Button 
                             icon={<CopyOutlined />} 
                             onClick={() => handleCopyVacancy(record)}
                         />
                     </Tooltip>
+                    {record.parentId && (
+                        <Tooltip title="Copy Parent Details">
+                            <Button 
+                                icon={<UserOutlined />} 
+                                onClick={() => handleCopyParentDetails(record)}
+                            />
+                        </Tooltip>
+                    )}
                     <Tooltip title="Edit">
                         <Button 
                             icon={<EditOutlined />} 
@@ -2619,6 +2631,65 @@ Apply now: https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
         }
     };
 
+    // Add function to copy parent details associated with a vacancy
+    const handleCopyParentDetails = async (vacancy) => {
+        try {
+            if (!vacancy.parentId) {
+                message.info('This vacancy is not linked to a parent application.');
+                return;
+            }
+
+            setLoading(true);
+            
+            // Call API to get parent details by ID
+            const response = await fetch(`https://api.dearsirhometuition.com/api/parents/${vacancy.parentId}`);
+            const data = await response.json();
+            
+            if (!data.success || !data.data) {
+                throw new Error('Failed to fetch parent details');
+            }
+            
+            const parent = data.data;
+            
+            // Store the parent data and show the modal
+            setSelectedParent({
+                ...parent,
+                vacancyTitle: vacancy.title
+            });
+            setParentDetailsVisible(true);
+            
+            // Format the parent details for clipboard
+            const formattedText = `
+Dear Sir Tuition - Parent Details (Vacancy: ${vacancy.title})
+-------------------------------------------------------------
+Name: ${parent.parentName || 'N/A'}
+Phone: ${parent.phone || 'N/A'}
+Address: ${parent.address || 'N/A'}
+Grade: ${parent.grade ? `Grade ${parent.grade}` : 'N/A'}
+Subjects: ${parent.subjects ? (Array.isArray(parent.subjects) ? parent.subjects.join(', ') : parent.subjects) : 'N/A'}
+Preferred Teacher: ${parent.preferredTeacher ? parent.preferredTeacher.charAt(0).toUpperCase() + parent.preferredTeacher.slice(1) : 'N/A'}
+Preferred Time: ${parent.preferredTime || 'N/A'}
+Salary Offered: ${parent.salary || 'Negotiable'}
+Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
+`;
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(formattedText)
+                .then(() => {
+                    message.success('Parent details copied to clipboard!');
+                })
+                .catch((err) => {
+                    console.error('Failed to copy: ', err);
+                    message.error('Failed to copy parent details.');
+                });
+        } catch (error) {
+            console.error('Error copying parent details:', error);
+            message.error('Failed to fetch or copy parent details.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="teacher-list">
             <Tabs 
@@ -3041,6 +3112,111 @@ Apply now: https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
                         </Space>
                     </Form.Item>
                 </Form>
+            </Modal>
+
+            {/* Add Parent Details Modal */}
+            <Modal
+                title={`Parent Details for Vacancy: ${selectedParent?.vacancyTitle || ''}`}
+                open={parentDetailsVisible}
+                onCancel={() => {
+                    setParentDetailsVisible(false);
+                    setSelectedParent(null);
+                }}
+                footer={[
+                    <Button 
+                        key="copy" 
+                        type="primary" 
+                        icon={<CopyOutlined />}
+                        onClick={() => {
+                            // Format the parent details for clipboard again
+                            if (!selectedParent) return;
+                            
+                            const formattedText = `
+Dear Sir Tuition - Parent Details (Vacancy: ${selectedParent.vacancyTitle || ''})
+-------------------------------------------------------------
+Name: ${selectedParent.parentName || 'N/A'}
+Phone: ${selectedParent.phone || 'N/A'}
+Address: ${selectedParent.address || 'N/A'}
+Grade: ${selectedParent.grade ? `Grade ${selectedParent.grade}` : 'N/A'}
+Subjects: ${selectedParent.subjects ? (Array.isArray(selectedParent.subjects) ? selectedParent.subjects.join(', ') : selectedParent.subjects) : 'N/A'}
+Preferred Teacher: ${selectedParent.preferredTeacher ? selectedParent.preferredTeacher.charAt(0).toUpperCase() + selectedParent.preferredTeacher.slice(1) : 'N/A'}
+Preferred Time: ${selectedParent.preferredTime || 'N/A'}
+Salary Offered: ${selectedParent.salary || 'Negotiable'}
+Status: ${selectedParent.status ? selectedParent.status.toUpperCase() : 'N/A'}
+`;
+                            
+                            navigator.clipboard.writeText(formattedText)
+                                .then(() => message.success('Parent details copied to clipboard!'))
+                                .catch(() => message.error('Failed to copy parent details.'));
+                        }}
+                    >
+                        Copy Details
+                    </Button>,
+                    <Button key="close" onClick={() => {
+                        setParentDetailsVisible(false);
+                        setSelectedParent(null);
+                    }}>
+                        Close
+                    </Button>
+                ]}
+            >
+                {selectedParent && (
+                    <div>
+                        <p><strong>Name:</strong> {selectedParent.parentName}</p>
+                        <p><strong>Phone:</strong> {
+                            selectedParent.phone ? (
+                                <a href={`tel:${selectedParent.phone}`}>{selectedParent.phone}</a>
+                            ) : 'N/A'
+                        }</p>
+                        <p><strong>Address:</strong> {selectedParent.address || 'N/A'}</p>
+                        <p><strong>Grade:</strong> {
+                            selectedParent.grade ? `Grade ${selectedParent.grade}` : 'N/A'
+                        }</p>
+                        <p><strong>Subjects:</strong> {
+                            selectedParent.subjects && Array.isArray(selectedParent.subjects) 
+                                ? selectedParent.subjects.map((subject, index) => (
+                                    <span key={index}>
+                                        {subject.charAt(0).toUpperCase() + subject.slice(1).replace(/_/g, ' ')}
+                                        {index < selectedParent.subjects.length - 1 ? ', ' : ''}
+                                    </span>
+                                ))
+                                : (selectedParent.subjects || 'N/A')
+                        }</p>
+                        <p><strong>Preferred Teacher:</strong> {
+                            selectedParent.preferredTeacher 
+                                ? selectedParent.preferredTeacher.charAt(0).toUpperCase() + selectedParent.preferredTeacher.slice(1)
+                                : 'N/A'
+                        }</p>
+                        <p><strong>Preferred Time:</strong> {
+                            selectedParent.preferredTime ? (
+                                {
+                                    'morning': 'Morning (6 AM - 10 AM)',
+                                    'afternoon': 'Afternoon (2 PM - 5 PM)',
+                                    'evening': 'Evening (5 PM - 8 PM)'
+                                }[selectedParent.preferredTime] || selectedParent.preferredTime
+                            ) : 'N/A'
+                        }</p>
+                        <p><strong>Salary Offered:</strong> {selectedParent.salary || 'Negotiable'}</p>
+                        <p><strong>Status:</strong> {
+                            selectedParent.status ? (
+                                <Tag color={
+                                    selectedParent.status === 'new' ? 'default' :
+                                    selectedParent.status === 'pending' ? 'processing' :
+                                    selectedParent.status === 'done' ? 'success' : 'error'
+                                }>
+                                    {selectedParent.status === 'new' ? 'New Application' :
+                                     selectedParent.status === 'pending' ? 'Vacancy Created' :
+                                     selectedParent.status === 'done' ? 'Teacher Assigned' : 
+                                     selectedParent.status === 'not_done' ? 'Failed' : 
+                                     selectedParent.status.toUpperCase()}
+                                </Tag>
+                            ) : 'N/A'
+                        }</p>
+                        {selectedParent.submissionDate && (
+                            <p><strong>Submission Date:</strong> {new Date(selectedParent.submissionDate).toLocaleString()}</p>
+                        )}
+                    </div>
+                )}
             </Modal>
         </div>
     );
