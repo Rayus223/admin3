@@ -33,7 +33,7 @@ const ApprovedTeachers = () => {
   const markerRef = useRef(null);
   const circleRef = useRef(null);
 
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const tableRef = useRef(null);
 
@@ -453,9 +453,9 @@ const ApprovedTeachers = () => {
     ] : []),
     {
       title: 'Class',
-      dataIndex: 'class',
-      key: 'class',
-      render: (teacherClass) => teacherClass || 'N/A'
+      dataIndex: 'grade',
+      key: 'grade',
+      render: (grade) => grade || 'N/A'
     },
     {
       title: 'Status',
@@ -636,14 +636,23 @@ const ApprovedTeachers = () => {
           setSelectedCvUrl(null);
         }}
         footer={null}
-        width={800}
-        height={800}
-        style={{ top: 20 }}
+        width="90%"
+        style={{ 
+          top: 20,
+          maxWidth: 1200,
+          height: 'calc(100vh - 40px)'
+        }}
+        bodyStyle={{ 
+          height: 'calc(100vh - 140px)',
+          padding: '12px',
+          overflow: 'hidden'
+        }}
         className="cv-modal"
+        centered
       >
         {selectedCvUrl && (
-          <div style={{ height: '80vh', width: '100%' }}>
-            <div className="cv-modal-header">
+          <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div className="cv-modal-header" style={{ marginBottom: '10px' }}>
               <Space>
                 <Button 
                   type="primary"
@@ -668,7 +677,8 @@ const ApprovedTeachers = () => {
                 style={{ 
                   width: '100%', 
                   height: 'calc(100% - 50px)', 
-                  border: 'none' 
+                  border: 'none',
+                  flex: 1
                 }}
                 title="CV Preview"
                 frameBorder="0"
@@ -679,7 +689,11 @@ const ApprovedTeachers = () => {
                 data={selectedCvUrl}
                 type="application/pdf"
                 width="100%"
-                height="calc(100% - 50px)"
+                height="100%"
+                style={{
+                  flex: 1,
+                  minHeight: 'calc(100vh - 200px)'
+                }}
               >
                 <p>
                   Your browser does not support PDF viewing. 
