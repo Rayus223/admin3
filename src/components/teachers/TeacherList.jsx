@@ -2590,16 +2590,16 @@ const budgetColumns = [
         try {
             // Format the vacancy details
             const formattedText = `
-Dear Sir Tuition - Vacancy
+*Dear Sir Tuition - Vacancy*
 ---------------------------
-Title: ${vacancy.title}
-Subject: ${vacancy.subject}
-Class: ${vacancy.class}
-Time: ${vacancy.time}
-Location: ${vacancy.location}
-Gender: ${vacancy.gender === 'any' ? 'Any' : vacancy.gender.charAt(0).toUpperCase() + vacancy.gender.slice(1)}
-Salary: ${vacancy.salary}
-Description: ${vacancy.description}
+*Title :* ${vacancy.title}
+*Subject :* ${vacancy.subject}
+*Class :* ${vacancy.class}
+*Time :* ${vacancy.time}
+*Location :* ${vacancy.location}
+*Gender :* ${vacancy.gender === 'any' ? 'Any' : vacancy.gender.charAt(0).toUpperCase() + vacancy.gender.slice(1)}
+*Salary :* ${vacancy.salary}
+*Description :* ${vacancy.description}
 
 Apply now: https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
 `;
