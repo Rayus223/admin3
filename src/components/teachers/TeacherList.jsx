@@ -2640,34 +2640,85 @@ Apply now: https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
             }
 
             setLoading(true);
+            console.log('Fetching parent details for parentId:', vacancy.parentId);
+            console.log('Vacancy data:', vacancy);
             
-            try {
-                // Use API service with proper authentication
-                const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://api.dearsirhometuition.com'}/api/parents/${vacancy.parentId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-                        'Content-Type': 'application/json'
+            // Check token
+            const token = localStorage.getItem('adminToken');
+            if (!token) {
+                message.error('Authentication token not found. Please log in again.');
+                return;
+            }
+            console.log('Auth token available:', token.substring(0, 15) + '...');
+            
+            // Log all the API attempts we're making
+            const endpoints = [
+                `/api/parents/${vacancy.parentId}`,
+                `/api/parent-apply/${vacancy.parentId}`,
+                `/api/parent-apply/get/${vacancy.parentId}`,
+                `/api/parent/${vacancy.parentId}`
+            ];
+            
+            // Try all endpoints until one works
+            let successfulResponse = null;
+            let errorMessages = [];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const apiUrl = `${process.env.REACT_APP_API_URL || 'https://api.dearsirhometuition.com'}${endpoint}`;
+                    console.log(`Attempting to fetch from: ${apiUrl}`);
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`API error (${response.status}) with endpoint ${endpoint}:`, errorText);
+                        errorMessages.push(`${endpoint}: ${response.status} - ${errorText}`);
+                        continue; // Try next endpoint
                     }
-                });
-                
-                const data = await response.json();
-                
-                if (!data.success || !data.data) {
-                    throw new Error('Failed to fetch parent details');
+                    
+                    const data = await response.json();
+                    console.log(`Response from ${endpoint}:`, data);
+                    
+                    if (data && (data.success || data.data || data.parentName)) {
+                        successfulResponse = data;
+                        console.log('Found working endpoint:', endpoint);
+                        break; // Exit the loop if we got a good response
+                    } else {
+                        errorMessages.push(`${endpoint}: Response successful but no parent data found`);
+                    }
+                } catch (error) {
+                    console.error(`Error with endpoint ${endpoint}:`, error);
+                    errorMessages.push(`${endpoint}: ${error.message}`);
                 }
-                
-                const parent = data.data;
-                
-                // Store the parent data and show the modal
-                setSelectedParent({
-                    ...parent,
-                    vacancyTitle: vacancy.title
-                });
-                setParentDetailsVisible(true);
-                
-                // Format the parent details for clipboard
-                const formattedText = `
+            }
+            
+            if (!successfulResponse) {
+                throw new Error(`All endpoints failed: ${errorMessages.join('; ')}`);
+            }
+            
+            // Extract parent data from the successful response
+            const parent = successfulResponse.data || successfulResponse;
+            
+            // Show what we found
+            console.log('Successfully retrieved parent data:', parent);
+            
+            // Store the parent data and show the modal
+            setSelectedParent({
+                ...parent,
+                vacancyTitle: vacancy.title
+            });
+            setParentDetailsVisible(true);
+            
+            // Format the parent details for clipboard
+            const formattedText = `
 Dear Sir Tuition - Parent Details (Vacancy: ${vacancy.title})
 -------------------------------------------------------------
 Name: ${parent.parentName || 'N/A'}
@@ -2681,36 +2732,24 @@ Salary Offered: ${parent.salary || 'Negotiable'}
 Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
 `;
 
-                // Copy to clipboard
-                navigator.clipboard.writeText(formattedText)
-                    .then(() => {
-                        message.success('Parent details copied to clipboard!');
-                    })
-                    .catch((err) => {
-                        console.error('Failed to copy: ', err);
-                        message.error('Failed to copy parent details.');
-                    });
-            } catch (error) {
-                console.error('Error fetching parent details:', error);
-                
-                // Try alternative endpoint
+            // Copy to clipboard
+            navigator.clipboard.writeText(formattedText)
+                .then(() => {
+                    message.success('Parent details copied to clipboard!');
+                })
+                .catch((err) => {
+                    console.error('Failed to copy: ', err);
+                    message.error('Failed to copy parent details.');
+                });
+        } catch (error) {
+            console.error('Error copying parent details:', error);
+            message.error(error.message || 'Failed to fetch or copy parent details.');
+            
+            // Fallback: Perhaps the parentId is actually the complete parent object
+            if (typeof vacancy.parentId === 'object' && vacancy.parentId !== null) {
                 try {
-                    console.log('Trying alternative parent endpoint...');
-                    const altResponse = await fetch(`${process.env.REACT_APP_API_URL || 'https://api.dearsirhometuition.com'}/api/parent-apply/${vacancy.parentId}`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    const altData = await altResponse.json();
-                    
-                    if (!altData.success && !altData.data) {
-                        throw new Error('Failed with alternative endpoint too');
-                    }
-                    
-                    const parent = altData.success ? altData.data : altData;
+                    console.log('Trying to use parentId as direct parent object:', vacancy.parentId);
+                    const parent = vacancy.parentId;
                     
                     // Store the parent data and show the modal
                     setSelectedParent({
@@ -2734,7 +2773,6 @@ Salary Offered: ${parent.salary || 'Negotiable'}
 Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
 `;
 
-                    // Copy to clipboard
                     navigator.clipboard.writeText(formattedText)
                         .then(() => {
                             message.success('Parent details copied to clipboard!');
@@ -2743,14 +2781,11 @@ Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
                             console.error('Failed to copy: ', err);
                             message.error('Failed to copy parent details.');
                         });
-                } catch (altError) {
-                    console.error('Failed with alternative endpoint too:', altError);
-                    throw new Error('Failed to fetch parent details with both endpoints');
+                } catch (fallbackError) {
+                    console.error('Even the fallback approach failed:', fallbackError);
+                    message.error('Could not retrieve parent information in any way');
                 }
             }
-        } catch (error) {
-            console.error('Error copying parent details:', error);
-            message.error('Failed to fetch or copy parent details.');
         } finally {
             setLoading(false);
         }
