@@ -2601,7 +2601,7 @@ const budgetColumns = [
 *Salary :* ${vacancy.salary}
 *Description :* ${vacancy.description}
 
-Apply now: https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
+*Apply now :* https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
 `;
 
             // Copy to clipboard
