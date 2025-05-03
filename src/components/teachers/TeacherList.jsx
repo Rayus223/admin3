@@ -2651,12 +2651,12 @@ Apply now: https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
             }
             console.log('Auth token available:', token.substring(0, 15) + '...');
             
-            // Log all the API attempts we're making
+            // Try endpoints based on what's used in ParentList.jsx
             const endpoints = [
-                `/api/parents/${vacancy.parentId}`,
-                `/api/parent-apply/${vacancy.parentId}`,
-                `/api/parent-apply/get/${vacancy.parentId}`,
-                `/api/parent/${vacancy.parentId}`
+                `/api/parents/get/${vacancy.parentId}`,
+                `/api/parent-apply/id/${vacancy.parentId}`,
+                `/api/parent-form/${vacancy.parentId}`,
+                `/api/parents-form/get/${vacancy.parentId}` 
             ];
             
             // Try all endpoints until one works
@@ -2783,7 +2783,72 @@ Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
                         });
                 } catch (fallbackError) {
                     console.error('Even the fallback approach failed:', fallbackError);
-                    message.error('Could not retrieve parent information in any way');
+                    
+                    // Try one more approach - get all parents and filter
+                    try {
+                        console.log('Trying to get all parents and find by ID');
+                        const allParentsResponse = await fetch(`${process.env.REACT_APP_API_URL || 'https://api.dearsirhometuition.com'}/api/parents/all`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (!allParentsResponse.ok) {
+                            throw new Error(`Failed to get all parents: ${allParentsResponse.status}`);
+                        }
+                        
+                        const allParentsData = await allParentsResponse.json();
+                        console.log('Got all parents, count:', allParentsData.data?.length || 0);
+                        
+                        if (!allParentsData.success || !allParentsData.data || !Array.isArray(allParentsData.data)) {
+                            throw new Error('Invalid response format from all parents endpoint');
+                        }
+                        
+                        // Find the parent with matching ID
+                        const foundParent = allParentsData.data.find(p => p._id === vacancy.parentId);
+                        
+                        if (!foundParent) {
+                            throw new Error(`Could not find parent with ID ${vacancy.parentId} in the list of all parents`);
+                        }
+                        
+                        console.log('Found parent in all parents:', foundParent);
+                        
+                        // Store the parent data and show the modal
+                        setSelectedParent({
+                            ...foundParent,
+                            vacancyTitle: vacancy.title
+                        });
+                        setParentDetailsVisible(true);
+                        
+                        // Format the parent details for clipboard
+                        const formattedText = `
+Dear Sir Tuition - Parent Details (Vacancy: ${vacancy.title})
+-------------------------------------------------------------
+Name: ${foundParent.parentName || 'N/A'}
+Phone: ${foundParent.phone || 'N/A'}
+Address: ${foundParent.address || 'N/A'}
+Grade: ${foundParent.grade ? `Grade ${foundParent.grade}` : 'N/A'}
+Subjects: ${foundParent.subjects ? (Array.isArray(foundParent.subjects) ? foundParent.subjects.join(', ') : foundParent.subjects) : 'N/A'}
+Preferred Teacher: ${foundParent.preferredTeacher ? foundParent.preferredTeacher.charAt(0).toUpperCase() + foundParent.preferredTeacher.slice(1) : 'N/A'}
+Preferred Time: ${foundParent.preferredTime || 'N/A'}
+Salary Offered: ${foundParent.salary || 'Negotiable'}
+Status: ${foundParent.status ? foundParent.status.toUpperCase() : 'N/A'}
+`;
+
+                        navigator.clipboard.writeText(formattedText)
+                            .then(() => {
+                                message.success('Parent details copied to clipboard!');
+                            })
+                            .catch((err) => {
+                                console.error('Failed to copy: ', err);
+                                message.error('Failed to copy parent details.');
+                            });
+                    } catch (allParentsError) {
+                        console.error('Failed to get parent from all parents list:', allParentsError);
+                        message.error('Could not retrieve parent information in any way');
+                    }
                 }
             }
         } finally {
