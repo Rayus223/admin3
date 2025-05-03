@@ -420,17 +420,11 @@ const ParentList = () => {
             }
         },
         {
-            title: 'Preferred Time',
-            dataIndex: 'preferredTime',
-            key: 'preferredTime',
-            render: (time) => {
-              const times = {
-                morning: 'Morning (6 AM - 10 AM)',
-                afternoon: 'Afternoon (2 PM - 5 PM)',
-                evening: 'Evening (5 PM - 8 PM)'
-              };
-              return times[time] || time;
-            }
+            title: 'Location',
+            dataIndex: 'address',
+            key: 'address',
+            ellipsis: true,
+            render: (address) => address || 'N/A'
         },
         {
             title: 'Salary',
