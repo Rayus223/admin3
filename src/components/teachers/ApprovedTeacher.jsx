@@ -341,6 +341,12 @@ const ApprovedTeachers = () => {
   const getFileType = (url) => {
     if (url.endsWith('.pdf')) return 'pdf';
     if (url.endsWith('.doc') || url.endsWith('.docx')) return 'doc';
+    if (url.endsWith('.jpg') || url.endsWith('.jpeg')) return 'image';
+    if (url.endsWith('.png')) return 'image';
+    // For Cloudinary URLs that might not have file extensions
+    if (url.includes('cloudinary.com')) {
+      if (url.includes('/image/upload/')) return 'image';
+    }
     return 'unknown';
   };
 
@@ -367,6 +373,11 @@ const ApprovedTeachers = () => {
         setCvModalVisible(true);
       } else if (fileType === 'doc') {
         const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
+        setSelectedCvUrl(googleDocsUrl);
+        setCvModalVisible(true);
+      } else if (fileType === 'image') {
+        // For image files, directly set the URL and display the image
+        setSelectedCvUrl(cvUrl);
         setCvModalVisible(true);
       } else {
         message.warning('File type not supported for preview. Downloading instead...');
@@ -684,6 +695,24 @@ const ApprovedTeachers = () => {
                 frameBorder="0"
                 allowFullScreen
               />
+            ) : getFileType(selectedCvUrl) === 'image' ? (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                flex: 1,
+                overflow: 'auto'
+              }}>
+                <img 
+                  src={selectedCvUrl}
+                  alt="CV Preview" 
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: 'calc(100vh - 200px)',
+                    objectFit: 'contain'
+                  }}
+                />
+              </div>
             ) : (
               <object
                 data={selectedCvUrl}
