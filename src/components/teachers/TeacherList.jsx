@@ -691,6 +691,12 @@ const fetchData = async (showLoading = true) => {
     const getFileType = (url) => {
         if (url.endsWith('.pdf')) return 'pdf';
         if (url.endsWith('.doc') || url.endsWith('.docx')) return 'doc';
+        if (url.endsWith('.jpg') || url.endsWith('.jpeg')) return 'image';
+        if (url.endsWith('.png')) return 'image';
+        // For Cloudinary URLs that might not have file extensions
+        if (url.includes('cloudinary.com')) {
+          if (url.includes('/image/upload/')) return 'image';
+        }
         return 'unknown';
     };
     
@@ -707,6 +713,10 @@ const fetchData = async (showLoading = true) => {
                 // For DOC/DOCX - use Google Docs Viewer
                 const googleDocsUrl = `https://docs.google.com/gview?url=${encodeURIComponent(cvUrl)}&embedded=true`;
                 setSelectedCvUrl(googleDocsUrl);
+                setCvModalVisible(true);
+            } else if (fileType === 'image') {
+                // For image files, directly set the URL and display the image
+                setSelectedCvUrl(cvUrl);
                 setCvModalVisible(true);
             } else {
                 message.warning('File type not supported for preview. Downloading instead...');
@@ -2867,12 +2877,23 @@ Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
         setSelectedCvUrl(null);
     }}
     footer={null}
-    width={800}
+    width="90%"
+    style={{ 
+        top: 20,
+        maxWidth: 1200,
+        height: 'calc(100vh - 40px)'
+    }}
+    bodyStyle={{ 
+        height: 'calc(100vh - 140px)',
+        padding: '12px',
+        overflow: 'hidden'
+    }}
     className="cv-modal"
+    centered
 >
     {selectedCvUrl && (
-        <div style={{ height: '600px', width: '100%' }}>
-            <div className="cv-modal-header">
+        <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div className="cv-modal-header" style={{ marginBottom: '10px' }}>
                 <Space>
                     <Button 
                         type="primary"
@@ -2891,15 +2912,54 @@ Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
                     </Button>
                 </Space>
             </div>
-            <iframe
-                src={selectedCvUrl}
-                style={{ 
-                    width: '100%', 
-                    height: 'calc(100% - 50px)', 
-                    border: 'none' 
-                }}
-                title="CV Preview"
-            />
+            {selectedCvUrl && selectedCvUrl.includes('google.com/gview') ? (
+                <iframe
+                    src={selectedCvUrl}
+                    style={{ 
+                        width: '100%', 
+                        height: 'calc(100% - 50px)', 
+                        border: 'none',
+                        flex: 1
+                    }}
+                    title="CV Preview"
+                    frameBorder="0"
+                    allowFullScreen
+                />
+            ) : getFileType(selectedCvUrl) === 'image' ? (
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    flex: 1,
+                    overflow: 'auto'
+                }}>
+                    <img 
+                        src={selectedCvUrl}
+                        alt="CV Preview" 
+                        style={{
+                            maxWidth: '100%',
+                            maxHeight: 'calc(100vh - 200px)',
+                            objectFit: 'contain'
+                        }}
+                    />
+                </div>
+            ) : (
+                <object
+                    data={selectedCvUrl}
+                    type="application/pdf"
+                    width="100%"
+                    height="100%"
+                    style={{
+                        flex: 1,
+                        minHeight: 'calc(100vh - 200px)'
+                    }}
+                >
+                    <p>
+                        Your browser does not support PDF viewing. 
+                        <a href={selectedCvUrl} target="_blank" rel="noreferrer">Click here to download the PDF</a>.
+                    </p>
+                </object>
+            )}
         </div>
     )}
 </Modal>
