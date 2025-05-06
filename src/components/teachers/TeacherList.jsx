@@ -2070,24 +2070,53 @@ const budgetColumns = [
             
             console.log('Found payment records:', paymentRecords);
             
+            // If no payment records found, create a dummy payment record
+            let originalPayment;
             if (paymentRecords.length === 0) {
-                // More descriptive error message
-                message.error('Could not find original payment record for this teacher and vacancy');
+                // Still show warning for admin, but proceed
+                Modal.confirm({
+                    title: 'No Payment Record Found',
+                    content: 'No payment record was found for this teacher and vacancy. Do you want to proceed with the refund anyway?',
+                    okText: 'Proceed Anyway',
+                    cancelText: 'Cancel',
+                    onOk() {
+                        // Create a dummy payment record
+                        originalPayment = {
+                            _id: 'admin-override',
+                            teacherId: teacher._id,
+                            teacherName: teacher.fullName,
+                            vacancyId: vacancy._id,
+                            vacancyTitle: vacancy.title,
+                            amount: 0, // Unknown amount
+                            date: new Date().toISOString(),
+                            type: 'payment',
+                            isAdminOverride: true
+                        };
+                        
+                        setSelectedRefundTeacher({
+                            teacher,
+                            vacancy,
+                            application: foundApplication,
+                            originalPayment
+                        });
+                        setRefundFormVisible(true);
+                    }
+                });
                 return;
+            } else {
+                // Use the most recent payment record
+                originalPayment = paymentRecords.sort((a, b) => 
+                    new Date(b.date) - new Date(a.date)
+                )[0];
+                
+                setSelectedRefundTeacher({
+                    teacher,
+                    vacancy,
+                    application: foundApplication,
+                    originalPayment
+                });
+                setRefundFormVisible(true);
             }
-
-            // Use the most recent payment record
-            const originalPayment = paymentRecords.sort((a, b) => 
-                new Date(b.date) - new Date(a.date)
-            )[0];
-
-            setSelectedRefundTeacher({
-                teacher,
-                vacancy,
-                application: foundApplication,
-                originalPayment
-            });
-            setRefundFormVisible(true);
         } catch (error) {
             console.error('Error preparing refund:', error);
             message.error('Failed to prepare refund: ' + error.message);
@@ -2105,16 +2134,19 @@ const budgetColumns = [
             // Log payment record for debugging
             console.log('Using original payment record:', selectedRefundTeacher.originalPayment);
 
-            // Check if refund already exists for this payment
-            const existingRefund = budgetData.find(
-                entry => 
-                    entry.type === 'refund' && 
-                    entry.teacherId === selectedRefundTeacher.teacher._id &&
-                    entry.vacancyId === selectedRefundTeacher.vacancy._id
-            );
+            // For admin override cases, skip the existing refund check
+            if (!selectedRefundTeacher.originalPayment.isAdminOverride) {
+                // Check if refund already exists for this payment
+                const existingRefund = budgetData.find(
+                    entry => 
+                        entry.type === 'refund' && 
+                        entry.teacherId === selectedRefundTeacher.teacher._id &&
+                        entry.vacancyId === selectedRefundTeacher.vacancy._id
+                );
 
-            if (existingRefund) {
-                throw new Error('A refund has already been processed for this payment');
+                if (existingRefund) {
+                    throw new Error('A refund has already been processed for this payment');
+                }
             }
 
             // Find the vacancy and application details
@@ -2125,7 +2157,8 @@ const budgetColumns = [
                 if (!vacancy.applications) continue;
                 
                 const application = vacancy.applications.find(app => 
-                    app.teacher && app.teacher._id === selectedRefundTeacher.teacher._id
+                    app.teacher && app.teacher._id === selectedRefundTeacher.teacher._id &&
+                    vacancy._id === selectedRefundTeacher.vacancy._id
                 );
                 
                 if (application) {
@@ -2136,7 +2169,8 @@ const budgetColumns = [
             }
 
             if (!foundVacancy || !foundApplication) {
-                throw new Error('Could not find vacancy or application details');
+                console.warn('Could not find exact application match, using selected teacher data');
+                foundApplication = selectedRefundTeacher.application;
             }
 
             // Check if application is already refunded
@@ -2155,8 +2189,14 @@ const budgetColumns = [
                 status: 'refunded',
                 type: 'refund',
                 reason: values.reason,
-                originalPaymentId: selectedRefundTeacher.originalPayment._id || selectedRefundTeacher.originalPayment.id
+                isAdminOverride: selectedRefundTeacher.originalPayment.isAdminOverride
             };
+            
+            // Only add originalPaymentId if it's not an admin override
+            if (!selectedRefundTeacher.originalPayment.isAdminOverride) {
+                refundEntry.originalPaymentId = selectedRefundTeacher.originalPayment._id || 
+                                                selectedRefundTeacher.originalPayment.id;
+            }
 
             console.log('Creating refund entry:', refundEntry);
 
@@ -2168,13 +2208,18 @@ const budgetColumns = [
             }
 
             // Update application status
-            const statusResponse = await apiService.updateApplicationStatus(
-                foundApplication._id,
-                'refunded'
-            );
+            const appId = foundApplication._id;
+            if (!appId) {
+                console.warn('Application ID not found, skipping status update');
+            } else {
+                const statusResponse = await apiService.updateApplicationStatus(
+                    appId,
+                    'refunded'
+                );
 
-            if (!statusResponse.success) {
-                throw new Error('Failed to update application status');
+                if (!statusResponse.success) {
+                    console.warn('Failed to update application status, but refund was processed');
+                }
             }
 
             // Update local states
@@ -2184,7 +2229,8 @@ const budgetColumns = [
                         ? {
                             ...v,
                             applications: v.applications.map(app =>
-                                app._id === foundApplication._id
+                                (app._id === foundApplication._id) || 
+                                (app.teacher?._id === selectedRefundTeacher.teacher._id)
                                     ? { ...app, status: 'refunded' }
                                     : app
                             )
@@ -3026,7 +3072,21 @@ Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
                     <div style={{ marginBottom: 16 }}>
                         <p><strong>Teacher:</strong> {selectedRefundTeacher?.teacher.fullName}</p>
                         <p><strong>Vacancy:</strong> {selectedRefundTeacher?.vacancy.title}</p>
-                        <p><strong>Original Payment:</strong> Rs. {selectedRefundTeacher?.originalPayment?.amount.toLocaleString()}</p>
+                        {selectedRefundTeacher?.originalPayment?.isAdminOverride ? (
+                            <div style={{ 
+                                backgroundColor: '#fffbe6', 
+                                padding: '10px', 
+                                border: '1px solid #faad14',
+                                borderRadius: '4px',
+                                marginBottom: '10px'
+                            }}>
+                                <p style={{ color: '#d4b106', margin: 0 }}>
+                                    <strong>Warning:</strong> No original payment record was found. This refund is being processed as an administrative override.
+                                </p>
+                            </div>
+                        ) : (
+                            <p><strong>Original Payment:</strong> Rs. {selectedRefundTeacher?.originalPayment?.amount.toLocaleString()}</p>
+                        )}
                     </div>
 
                     <Form.Item
@@ -3040,6 +3100,7 @@ Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
                                         return Promise.reject('Amount must be greater than 0');
                                     }
                                     if (selectedRefundTeacher?.originalPayment && 
+                                        !selectedRefundTeacher.originalPayment.isAdminOverride && 
                                         value > selectedRefundTeacher.originalPayment.amount) {
                                         return Promise.reject('Refund cannot exceed original payment');
                                     }
@@ -3069,7 +3130,7 @@ Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
                     <Form.Item>
                         <Space>
                             <Button type="primary" htmlType="submit">
-                                Process Refund
+                                {selectedRefundTeacher?.originalPayment?.isAdminOverride ? 'Process Admin Override Refund' : 'Process Refund'}
                             </Button>
                             <Button onClick={() => {
                                 setRefundFormVisible(false);
