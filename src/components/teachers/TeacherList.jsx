@@ -1672,11 +1672,12 @@ const applicantColumns = [
 
 const budgetColumns = [
     // REMOVED Teacher column
-    // {
-    //     title: 'Teacher',
-    //     dataIndex: 'teacherName',
-    //     key: 'teacherName',
-    // },
+    {
+        title: 'Teacher Name',
+        dataIndex: 'fullName',
+        key: 'fullName',
+        sorter: (a, b) => a.fullName.localeCompare(b.fullName)
+    },
     {
         title: 'Phone',
         dataIndex: 'phone', // <<< ADD THIS LINE
@@ -1711,16 +1712,7 @@ const budgetColumns = [
         dataIndex: 'vacancyTitle',
         key: 'vacancyTitle',
     },
-    {
-        title: 'Type',
-        dataIndex: 'type',
-        key: 'type',
-        render: (text) => (
-            <Tag color={text === 'payment' ? 'green' : 'red'}>
-                {text === 'payment' ? 'Payment' : 'Refund'}
-            </Tag>
-        ),
-    },
+    
     {
         title: 'Amount',
         dataIndex: 'amount',
@@ -1828,11 +1820,7 @@ const budgetColumns = [
             key: 'fullName',
             sorter: (a, b) => a.fullName.localeCompare(b.fullName)
         },
-        {
-            title: 'Email',
-            dataIndex: 'email',
-            key: 'email'
-        },
+        
         {
             title: 'Phone',
             dataIndex: 'phone', // <<< ADD THIS LINE
@@ -1862,20 +1850,7 @@ const budgetColumns = [
                 );
             }
         },
-        {
-            title: 'Subjects',
-            dataIndex: 'subjects',
-            key: 'subjects',
-            render: (subjects) => (
-                <>
-                    {subjects?.map(subject => (
-                        <Tag key={subject} color="blue">
-                            {subject}
-                        </Tag>
-                    )) || 'N/A'}
-                </>
-            )
-        },
+         
         {
             title: 'Vacancy',
             key: 'vacancy',
@@ -2069,35 +2044,54 @@ const budgetColumns = [
 
     // Add refund handling functions
     const handleRefundClick = (teacher, vacancy) => {
-        // Find the application for this teacher and vacancy
-        const foundVacancy = vacancies.find(v => v._id === vacancy._id);
-        const foundApplication = foundVacancy?.applications?.find(
-            app => app.teacher && app.teacher._id === teacher._id
-        );
+        try {
+            // Find the application for this teacher and vacancy
+            const foundVacancy = vacancies.find(v => v._id === vacancy._id);
+            const foundApplication = foundVacancy?.applications?.find(
+                app => app.teacher && app.teacher._id === teacher._id
+            );
 
-        if (!foundApplication) {
-            message.error('Could not find application details');
-            return;
+            if (!foundApplication) {
+                message.error('Could not find application details');
+                return;
+            }
+
+            console.log('Looking for payment record for:', {
+                teacherId: teacher._id,
+                vacancyId: vacancy._id
+            });
+
+            // Look for payment records with more flexible matching
+            const paymentRecords = budgetData.filter(
+                entry => entry.teacherId === teacher._id && 
+                       entry.vacancyId === vacancy._id &&
+                       entry.type === 'payment'
+            );
+            
+            console.log('Found payment records:', paymentRecords);
+            
+            if (paymentRecords.length === 0) {
+                // More descriptive error message
+                message.error('Could not find original payment record for this teacher and vacancy');
+                return;
+            }
+
+            // Use the most recent payment record
+            const originalPayment = paymentRecords.sort((a, b) => 
+                new Date(b.date) - new Date(a.date)
+            )[0];
+
+            setSelectedRefundTeacher({
+                teacher,
+                vacancy,
+                application: foundApplication,
+                originalPayment
+            });
+            setRefundFormVisible(true);
+        } catch (error) {
+            console.error('Error preparing refund:', error);
+            message.error('Failed to prepare refund: ' + error.message);
         }
-
-        const originalPayment = budgetData.find(
-            entry => entry.teacherId === teacher._id && 
-                    entry.vacancyId === vacancy._id &&
-                    entry.type === 'payment'
-        );
-
-        if (!originalPayment) {
-            message.error('Could not find original payment record');
-            return;
-        }
-
-        setSelectedRefundTeacher({
-            teacher,
-            vacancy,
-            application: foundApplication,
-            originalPayment
-        });
-        setRefundFormVisible(true);
     };
 
     const handleRefundSubmit = async (values) => {
@@ -2108,11 +2102,15 @@ const budgetColumns = [
                 throw new Error('Original payment record not found');
             }
 
+            // Log payment record for debugging
+            console.log('Using original payment record:', selectedRefundTeacher.originalPayment);
+
             // Check if refund already exists for this payment
             const existingRefund = budgetData.find(
                 entry => 
                     entry.type === 'refund' && 
-                    entry.originalPaymentId === selectedRefundTeacher.originalPayment.id
+                    entry.teacherId === selectedRefundTeacher.teacher._id &&
+                    entry.vacancyId === selectedRefundTeacher.vacancy._id
             );
 
             if (existingRefund) {
@@ -2157,20 +2155,21 @@ const budgetColumns = [
                 status: 'refunded',
                 type: 'refund',
                 reason: values.reason,
-                originalPaymentId: selectedRefundTeacher.originalPayment.id
+                originalPaymentId: selectedRefundTeacher.originalPayment._id || selectedRefundTeacher.originalPayment.id
             };
+
+            console.log('Creating refund entry:', refundEntry);
 
             // Save refund to backend
             const response = await apiService.saveBudgetTransaction(refundEntry);
 
             if (!response.success) {
-                throw new Error('Failed to save refund record');
+                throw new Error('Failed to save refund record: ' + (response.message || 'Unknown error'));
             }
 
             // Update application status
             const statusResponse = await apiService.updateApplicationStatus(
-                selectedRefundTeacher.vacancy._id,
-                selectedRefundTeacher.application._id,
+                foundApplication._id,
                 'refunded'
             );
 
@@ -2185,7 +2184,7 @@ const budgetColumns = [
                         ? {
                             ...v,
                             applications: v.applications.map(app =>
-                                app._id === selectedRefundTeacher.application._id
+                                app._id === foundApplication._id
                                     ? { ...app, status: 'refunded' }
                                     : app
                             )
@@ -2602,18 +2601,18 @@ const budgetColumns = [
         try {
             // Format the vacancy details
             const formattedText = `
-*Dear Sir Tuition - Vacancy*
+Dear Sir Tuition - Vacancy
 ---------------------------
-*Title :* ${vacancy.title}
-*Subject :* ${vacancy.subject}
-*Class :* ${vacancy.class}
-*Time :* ${vacancy.time}
-*Location :* ${vacancy.location}
-*Gender :* ${vacancy.gender === 'any' ? 'Any' : vacancy.gender.charAt(0).toUpperCase() + vacancy.gender.slice(1)}
-*Salary :* ${vacancy.salary}
-*Description :* ${vacancy.description}
+Title: ${vacancy.title}
+Subject: ${vacancy.subject}
+Class: ${vacancy.class}
+Time: ${vacancy.time}
+Location: ${vacancy.location}
+Gender: ${vacancy.gender === 'any' ? 'Any' : vacancy.gender.charAt(0).toUpperCase() + vacancy.gender.slice(1)}
+Salary: ${vacancy.salary}
+Description: ${vacancy.description}
 
-*Apply now :* https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
+Apply now: https://dearsirhometuition.com/Apply/vacancy.html?id=${vacancy._id}
 `;
 
             // Copy to clipboard
@@ -2703,7 +2702,6 @@ Subjects: ${parent.subjects ? (Array.isArray(parent.subjects) ? parent.subjects.
 Preferred Teacher: ${parent.preferredTeacher ? parent.preferredTeacher.charAt(0).toUpperCase() + parent.preferredTeacher.slice(1) : 'N/A'}
 Preferred Time: ${parent.preferredTime || 'N/A'}
 Salary Offered: ${parent.salary || 'Negotiable'}
-Status: ${parent.status ? parent.status.toUpperCase() : 'N/A'}
 `;
 
                 // Copy to clipboard
