@@ -33,7 +33,7 @@ const ApprovedTeachers = () => {
   const markerRef = useRef(null);
   const circleRef = useRef(null);
 
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(1000);
   const [currentPage, setCurrentPage] = useState(1);
   const tableRef = useRef(null);
 
