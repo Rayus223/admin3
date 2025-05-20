@@ -184,7 +184,7 @@ const ParentList = () => {
             // Create vacancy data object with updated field mappings
             const vacancyData = {
                 title: newTitle, // Use the generated title instead of application number
-                subject: Array.isArray(record.subjects) ? record.subjects[0] : record.subjects,
+                subject: Array.isArray(record.subjects) ? record.subjects.join(', ') : record.subjects,
                 // Map parent form fields to vacancy form fields
                 class: record.grade, // Use grade as class
                 time: record.preferredTime, // Use preferredTime directly
