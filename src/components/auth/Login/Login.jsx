@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import './styles.css';
 
+
 const Login = () => {
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
